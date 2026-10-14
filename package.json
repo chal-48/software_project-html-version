@@ -1,5 +1,17 @@
 {
   "dependencies": {
-    "firebase": "^12.10.0"
+    "bcryptjs": "^3.0.3",
+    "cors": "^2.8.6",
+    "dotenv": "^17.3.1",
+    "express": "^5.2.1",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.1.1",
+    "pg": "^8.20.0",
+    "@supabase/supabase-js": "^2.100.1"
+  },
+  "private": true,
+  "scripts": {
+    "build": "node scripts/build-static.cjs",
+    "start": "npm run build && node backend/server.js"
   }
 }

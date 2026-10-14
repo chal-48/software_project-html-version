@@ -1,7 +1,7 @@
 // register.js — Register page (PostgreSQL version)
 import { toast } from "./Toast.js";
 
-const API = "http://localhost:3000/api";
+const API = "/api";
 
 // ═══════════════════════════════════════════
 // FIELD VALIDATION UI

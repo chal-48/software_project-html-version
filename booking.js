@@ -1,6 +1,6 @@
 // booking.js — หน้ายืนยันการจอง
 
-const API = "http://localhost:3000/api";
+const API = "/api";
 
 // ── Auth helpers ──────────────────────────────────────
 const getToken = () => localStorage.getItem("token");
