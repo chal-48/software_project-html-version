@@ -144,7 +144,7 @@
                          onclick="document.getElementById('slip-input').click()">
                         <div class="upload-zone__icon">📤</div>
                         <div class="upload-zone__text">คลิกเพื่อเลือกไฟล์สลิป</div>
-                        <div class="upload-zone__hint">รองรับ JPG, PNG (ไม่เกิน 5MB)</div>
+                        <div class="upload-zone__hint">รองรับ JPG, PNG (ไม่เกิน 4MB)</div>
                         <img id="slip-preview" class="upload-zone__preview" alt="preview">
                     </div>
                     <input type="file" id="slip-input" accept="image/jpeg,image/png">
@@ -180,7 +180,7 @@
     <script type="module">
         import { toast } from "./Toast.js";
 
-        const API   = "http://localhost:3000/api";
+        const API   = "/api";
         const token = localStorage.getItem("token");
 
         // ── ตรวจสอบ token ──────────────────────────────────
@@ -228,8 +228,8 @@
         slipInput.addEventListener("change", e => {
             const file = e.target.files[0];
             if (!file) return;
-            if (file.size > 5 * 1024 * 1024) {
-                toast("ไฟล์ใหญ่เกิน 5MB", "error");
+            if (file.size > 4 * 1024 * 1024) {
+                toast("ไฟล์ใหญ่เกิน 4MB", "error");
                 return;
             }
             const reader = new FileReader();

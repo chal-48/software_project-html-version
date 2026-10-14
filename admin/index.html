@@ -4,28 +4,29 @@
   <meta charset="UTF-8" />
   <script src="../auth-guard.js" data-role="admin"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>VanGo Admin - Mochit Connect</title>
+  <title>VanGo Admin</title>
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
   <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bcryptjs@2.4.3/dist/bcrypt.min.js"></script>
 </head>
 <body>
   <div class="app-container">
-    
+
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
         <div class="logo-box">V</div>
         <h1 class="logo-text">VanVan Admin</h1>
       </div>
-      
+
       <nav id="sidebar-nav" class="sidebar-nav"></nav>
-      
+
       <div class="sidebar-footer">
-        <button class="btn-logout" onclick="localStorage.removeItem('token'); localStorage.removeItem('user'); window.location.replace('../login.html');">
+        <button class="btn-logout">
           <i data-lucide="log-out"></i>
           <span>Logout</span>
         </button>
@@ -43,10 +44,10 @@
         <h2 id="page-title" class="page-title">Dashboard</h2>
         <div class="user-profile">
           <div class="user-info">
-            <p class="user-name">Admin User</p>
+            <p id="admin-username" class="user-name"></p>
             <p class="user-role">System Administrator</p>
           </div>
-          <div class="user-avatar">AD</div>
+          <div id="admin-avatar" class="user-avatar"></div>
         </div>
       </header>
 

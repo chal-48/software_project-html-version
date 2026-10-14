@@ -521,7 +521,7 @@
     </div>
 
     <script>
-        const API = "http://localhost:3000/api";
+        const API = "/api";
         const token = localStorage.getItem("token");
         if (!token) { window.location.href = "login.html"; }
 
@@ -614,7 +614,7 @@
                     : '';
 
                 const slipHtml = b.slip_image
-                    ? '<a href="' + b.slip_image + '" target="_blank" class="slip-link">🧾 ดูสลิปที่แนบ</a>'
+                    ? '<a href="#" data-booking-id="' + b.id + '" class="slip-link">🧾 ดูสลิปที่แนบ</a>'
                     : '';
 
                 return '<div class="booking-item">' +
@@ -736,7 +736,25 @@
                 window.print();
             });
 
-            document.getElementById("booking-list").addEventListener("click", function (e) {
+            document.getElementById("booking-list").addEventListener("click", async function (e) {
+                const slip = e.target.closest('.slip-link');
+                if (slip) {
+                    e.preventDefault();
+                    const tab = window.open('about:blank', '_blank');
+                    if (tab) tab.opener = null;
+                    try {
+                        const response = await fetch(API + '/bookings/' + encodeURIComponent(slip.dataset.bookingId) + '/slip-url', {
+                            headers: { Authorization: 'Bearer ' + localStorage.getItem('token') }
+                        });
+                        const data = await response.json();
+                        if (!response.ok) throw new Error(data.message);
+                        if (tab) tab.location.href = data.url;
+                    } catch (err) {
+                        if (tab) tab.close();
+                        showNotify(err.message, '#c62828');
+                    }
+                    return;
+                }
                 const btn = e.target.closest(".btn-print-ticket");
                 if (!btn) return;
                 printTicket(

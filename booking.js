@@ -1,6 +1,6 @@
 // booking.js — แค่ดูข้อมูล ไม่แตะ DB เลย
 
-const API = "http://localhost:3000/api";
+const API = "/api";
 
 const getToken = () => localStorage.getItem("token");
 const getUser  = () => { try { return JSON.parse(localStorage.getItem("user")); } catch { return null; } }

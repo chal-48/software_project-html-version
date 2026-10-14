@@ -1,6 +1,6 @@
 // main.js — index.html
 
-const API = "http://localhost:3000/api";
+const API = "/api";
 
 const ICONS = {
     home:    `<svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M3 12L12 3l9 9M5 10v9a1 1 0 001 1h4v-5h4v5h4a1 1 0 001-1v-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,

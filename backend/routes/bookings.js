@@ -3,44 +3,40 @@ const express                    = require('express');
 const router                     = express.Router();
 const pool                       = require('../db');
 const multer                     = require('multer');
+const path                       = require('path');
 const { createClient }           = require('@supabase/supabase-js');
+const { randomUUID }             = require('crypto');
 const { verifyToken, requireRole } = require('../middleware/auth');
 
-// ── Supabase Storage ──────────────────────────────────
-const supabase = createClient(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_ANON_KEY
-);
+// ── Upload สลิป ───────────────────────────────────────
+const storage = multer.memoryStorage();
 
 // ── Multer (เก็บในหน่วยความจำ ไม่บันทึกลงเครื่อง) ────
 const upload = multer({
-    storage: multer.memoryStorage(),
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+    storage,
+    limits: { fileSize: 4 * 1024 * 1024, files: 1 }, // Below Vercel's 4.5MB request limit
     fileFilter: (req, file, cb) => {
-        if (/jpeg|jpg|png/.test(file.mimetype)) cb(null, true);
-        else cb(new Error('ไฟล์ต้องเป็น JPG หรือ PNG เท่านั้น'));
+        const allowed = ['image/jpeg', 'image/png', 'application/pdf'];
+        if (allowed.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('ไฟล์ต้องเป็น JPG, PNG หรือ PDF เท่านั้น'));
+        }
     }
 });
 
 // ── อัปโหลดไปยัง Supabase Storage ───────────────────
+function getStorageClient() {
+    if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) throw new Error('Storage is not configured');
+    return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY,
+        { auth: { persistSession: false, autoRefreshToken: false } });
+}
 async function uploadToSupabase(file) {
-    const filename = `slip-${Date.now()}-${Math.round(Math.random() * 1e9)}.${file.mimetype === 'image/png' ? 'png' : 'jpg'}`;
-
-    const { error } = await supabase.storage
-        .from('slips')
-        .upload(filename, file.buffer, {
-            contentType: file.mimetype,
-            upsert: false
-        });
-
-    if (error) throw new Error('อัปโหลดรูปไม่สำเร็จ: ' + error.message);
-
-    // ดึง Public URL
-    const { data } = supabase.storage
-        .from('slips')
-        .getPublicUrl(filename);
-
-    return data.publicUrl;
+    const filename = 'slip-' + randomUUID() + (file.mimetype === 'image/png' ? '.png' : file.mimetype === 'application/pdf' ? '.pdf' : '.jpg');
+    const { error } = await getStorageClient().storage.from(process.env.SUPABASE_STORAGE_BUCKET || 'slips')
+        .upload(filename, file.buffer, { contentType: file.mimetype, upsert: false });
+    if (error) throw error;
+    return filename;
 }
 
 // ── Ticket Code ───────────────────────────────────────
@@ -59,6 +55,7 @@ function generateTicketCode() {
 // ══════════════════════════════════════════════════════
 router.post('/confirm', verifyToken, requireRole('user'), upload.single('slip'), async (req, res) => {
     const client = await pool.connect();
+    let uploadedPath;
     try {
         await client.query('BEGIN');
 
@@ -104,6 +101,7 @@ router.post('/confirm', verifyToken, requireRole('user'), upload.single('slip'),
 
         // ✅ อัปโหลดสลิปไป Supabase Storage
         const slipUrl = await uploadToSupabase(req.file);
+        uploadedPath = slipUrl;
 
         // สร้าง booking พร้อม URL ของสลิป
         const bookingResult = await client.query(`
@@ -132,6 +130,10 @@ router.post('/confirm', verifyToken, requireRole('user'), upload.single('slip'),
 
     } catch (err) {
         await client.query('ROLLBACK');
+        if (uploadedPath) {
+            await getStorageClient().storage.from(process.env.SUPABASE_STORAGE_BUCKET || 'slips')
+                .remove([uploadedPath]).catch(() => {});
+        }
         console.error(err);
         res.status(500).json({ message: err.message || 'เกิดข้อผิดพลาด' });
     } finally {
@@ -178,9 +180,108 @@ router.get('/', verifyToken, requireRole('user'), async (req, res) => {
     }
 });
 
-// ══════════════════════════════════════════════════════
-// POST /api/bookings/:id/verify — Admin ตรวจสลิป
-// ══════════════════════════════════════════════════════
+// ── POST /api/bookings/:id/slip ───────────────────────
+// User อัปโหลดสลิปการโอนเงิน
+router.post('/:id/slip', verifyToken, requireRole('user'), upload.single('slip'), async (req, res) => {
+    let storageClient;
+    let uploadedPath;
+    try {
+        // ตรวจสอบว่าเป็นการจองของตัวเอง
+        const booking = await pool.query(
+            'SELECT * FROM bookings WHERE id = $1 AND user_id = $2',
+            [req.params.id, req.user.id]
+        );
+
+        if (booking.rows.length === 0) {
+            return res.status(404).json({ message: 'ไม่พบการจองนี้' });
+        }
+
+        const b = booking.rows[0];
+
+        // ตรวจสอบสถานะ
+        if (b.status !== 'pending') {
+            return res.status(400).json({ message: `ไม่สามารถอัปโหลดสลิปได้ (สถานะ: ${b.status})` });
+        }
+
+        // ตรวจสอบว่าหมดเวลา 15 นาทีหรือยัง
+        if (new Date() > new Date(b.expires_at)) {
+            // อัปเดตสถานะเป็น expired
+            await pool.query(
+                "UPDATE bookings SET status = 'expired' WHERE id = $1",
+                [req.params.id]
+            );
+            // คืนที่นั่ง
+            await pool.query(
+                "UPDATE van_schedules SET available_seats = available_seats + 1, status = 'available' WHERE id = $1",
+                [b.schedule_id]
+            );
+            return res.status(400).json({ message: 'หมดเวลาชำระเงิน กรุณาจองใหม่' });
+        }
+
+        if (!req.file) {
+            return res.status(400).json({ message: 'กรุณาแนบสลิปการโอนเงิน' });
+        }
+
+        if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) {
+            return res.status(503).json({ message: 'ยังไม่ได้ตั้งค่าระบบเก็บสลิป' });
+        }
+        storageClient = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY,
+            { auth: { persistSession: false, autoRefreshToken: false } });
+        const filename = `slip-${randomUUID()}${path.extname(req.file.originalname).toLowerCase()}`;
+        const bucket = process.env.SUPABASE_STORAGE_BUCKET || 'slips';
+        const { error: uploadError } = await storageClient.storage.from(bucket)
+            .upload(filename, req.file.buffer, { contentType: req.file.mimetype });
+        if (uploadError) throw uploadError;
+        uploadedPath = filename;
+
+        // อัปเดตสลิปและสถานะ
+        const result = await pool.query(`
+            UPDATE bookings
+            SET slip_image = $1, status = 'slip_uploaded'
+            WHERE id = $2 AND status = 'pending'
+            RETURNING *
+        `, [filename, req.params.id]);
+        if (!result.rows.length) throw new Error('Booking status changed during upload');
+
+        res.json({
+            success: true,
+            message: 'อัปโหลดสลิปสำเร็จ รอ Admin ตรวจสอบ',
+            data: result.rows[0]
+        });
+
+    } catch (err) {
+        if (uploadedPath && storageClient) {
+            await storageClient.storage.from(process.env.SUPABASE_STORAGE_BUCKET || 'slips').remove([uploadedPath]);
+        }
+        console.error(err);
+        res.status(500).json({ message: 'เกิดข้อผิดพลาด' });
+    }
+});
+
+// Generate a fresh, short-lived URL only for the owner or an administrator.
+router.get('/:id/slip-url', verifyToken, async (req, res) => {
+    try {
+        const result = await pool.query('SELECT user_id, slip_image FROM bookings WHERE id = $1', [req.params.id]);
+        const booking = result.rows[0];
+        if (!booking || (req.user.role !== 'admin' && String(booking.user_id) !== String(req.user.id))) {
+            return res.status(404).json({ message: 'ไม่พบสลิปนี้' });
+        }
+        if (!booking.slip_image) return res.status(404).json({ message: 'ไม่พบสลิปนี้' });
+        if (/^https:\/\//.test(booking.slip_image)) return res.json({ url: booking.slip_image });
+        const client = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY,
+            { auth: { persistSession: false, autoRefreshToken: false } });
+        const { data, error } = await client.storage.from(process.env.SUPABASE_STORAGE_BUCKET || 'slips')
+            .createSignedUrl(booking.slip_image, 300);
+        if (error) throw error;
+        res.json({ url: data.signedUrl });
+    } catch (err) {
+        console.error(err);
+        res.status(500).json({ message: 'ไม่สามารถเปิดสลิปได้' });
+    }
+});
+
+// ── POST /api/bookings/:id/verify ────────────────────
+// Admin ตรวจสลิป ยืนยัน หรือ ปฏิเสธ
 router.post('/:id/verify', verifyToken, requireRole('admin'), async (req, res) => {
     const client = await pool.connect();
     try {
@@ -244,7 +345,7 @@ router.post('/:id/verify', verifyToken, requireRole('admin'), async (req, res) =
             if (b.slip_image) {
                 try {
                     const filename = b.slip_image.split('/').pop();
-                    await supabase.storage.from('slips').remove([filename]);
+                    await getStorageClient().storage.from(process.env.SUPABASE_STORAGE_BUCKET || 'slips').remove([filename]);
                 } catch (storageErr) {
                     console.error('ลบรูปไม่สำเร็จ:', storageErr.message);
                 }

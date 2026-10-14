@@ -1,3 +1,5 @@
+import { toast } from "../Toast.js";
+
 const supabaseUrl = 'https://skfibvoeoqnhxmrwjitk.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNrZmlidm9lb3FuaHhtcndqaXRrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ3OTEyODUsImV4cCI6MjA5MDM2NzI4NX0.Ul8BxGgCtFh29O0c0HgKuJ5d33KMG9gS9AuFCu8GRzM';
 const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
@@ -91,10 +93,10 @@ async function fetchAndRenderDashboard() {
   try {
     const today = new Date();
     const todayStr = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0');
-    
+
     // ดึงข้อมูลการจองที่รอตรวจ (ใช้ id ในการเรียงลำดับแทน created_at)
     const resPending = await supabase.from('bookings').select('*, users!user_id(username)').in('status', ['pending', 'slip_uploaded']).order('id', { ascending: false });
-    
+
     // 🛑 ดึงข้อมูลการจองที่ Confirm แล้ว พร้อมดึง "วันที่รถออกเดินทาง (depart_time)" มาใช้แทน
     const resConfirmedBookings = await supabase.from('bookings').select('amount, van_schedules(depart_time, routes(destination))').eq('status', 'confirmed');
 
@@ -130,7 +132,7 @@ async function fetchAndRenderDashboard() {
     // --- ส่วนที่ 2: Pending Payments (ยอดรอตรวจ) ---
     document.getElementById('stat-pending-payments').innerHTML = pendingBookings.length;
     const pendingListContainer = document.getElementById('dashboard-pending-list');
-    
+
     if (pendingBookings.length === 0) {
       pendingListContainer.innerHTML = '<div style="text-align:center; padding:2rem; background:var(--color-bg-main); border-radius:8px;"><p style="color:var(--color-text-soft);">ไม่มีรายการรอตรวจสอบสลิป 🎉</p></div>';
     } else {
@@ -160,10 +162,10 @@ async function fetchAndRenderDashboard() {
     for (let i = 6; i >= 0; i--) {
       const d = new Date();
       d.setDate(today.getDate() - i);
-      
+
       const checkDateStr = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
-      const displayLabel = d.toLocaleString('en-US', { month: 'short', day: 'numeric' }); 
-      
+      const displayLabel = d.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+
       chartLabels.push(displayLabel);
       dateIndexMap[checkDateStr] = 6 - i; // เก็บ Index ไว้เติมเงินใส่กราฟให้ถูกช่อง
     }
@@ -175,12 +177,12 @@ async function fetchAndRenderDashboard() {
             const dt = new Date(dTime.replace(' ', 'T'));
             // แปลง depart_time ให้เป็นฟอร์แมต YYYY-MM-DD
             const dtStr = dt.getFullYear() + '-' + String(dt.getMonth() + 1).padStart(2, '0') + '-' + String(dt.getDate()).padStart(2, '0');
-            
+
             // ถ้ารอบรถนั้นอยู่ในช่วง 7 วันที่เราวาดกราฟ ให้บวกเงินเข้าไป
             if(dateIndexMap[dtStr] !== undefined) {
                 const amount = Number(b.amount) || 0;
                 chartData[dateIndexMap[dtStr]] += amount;
-                
+
                 // ถ้ารถออกวันนี้ ให้บวกเข้ายอดรวมของวันนี้ด้วย
                 if(dtStr === todayStr) {
                     todayTotalRevenue += amount;
@@ -316,10 +318,10 @@ window.saveRoute = async function (e) {
 
     if (currentEditRouteId) {
       await supabase.from('routes').update(payload).eq('id', currentEditRouteId);
-      alert('อัปเดตเส้นทางสำเร็จ!');
+      toast ? toast('อัปเดตเส้นทางสำเร็จ!', 'success') : alert('อัปเดตเส้นทางสำเร็จ!');
     } else {
       await supabase.from('routes').insert([payload]);
-      alert('เพิ่มเส้นทางใหม่สำเร็จ!');
+      toast ? toast('เพิ่มเส้นทางใหม่สำเร็จ!', 'success') : alert('เพิ่มเส้นทางใหม่สำเร็จ!');
     }
     window.closeRouteModal();
     window.fetchAndRenderRoutes();
@@ -365,7 +367,7 @@ window.fetchAndRenderVans = async function () {
     vans.forEach(van => {
       // เช็คว่ารถคันนี้มี default_route_id ไหม ถ้ามีโชว์ชื่อสาย ถ้าไม่มีโชว์ว่าวิ่งอิสระ
       const routeName = van.routes ? `สาย ${van.routes.destination}` : '<span style="color:gray;">รถสำรอง/วิ่งอิสระ</span>';
-      
+
       const tr = document.createElement('tr');
       tr.innerHTML = `
                 <td><strong style="color:var(--color-blue-dark);">${van.plate_number}</strong></td>
@@ -420,7 +422,7 @@ window.saveVan = async function (e) {
   e.preventDefault();
   const plate = document.getElementById('van-plate').value.trim();
   const capacity = parseInt(document.getElementById('van-capacity').value);
-  
+
   // ดึงค่าจาก Dropdown ว่าเลือกสายไหนไว้
   const routeId = document.getElementById('van-default-route').value;
 
@@ -485,10 +487,10 @@ window.fetchAndRenderSchedules = async function () {
     const { data: schedules, error } = await supabase
       .from('van_schedules')
       .select(`
-                *, 
-                routes (origin, destination, price), 
-                vans (plate_number), 
-                drivers (full_name, users(username)) 
+                *,
+                routes (origin, destination, price),
+                vans (plate_number),
+                drivers (full_name, users(username))
             `)
       .order('depart_time', { ascending: true });
 
@@ -514,7 +516,7 @@ window.fetchAndRenderSchedules = async function () {
       // 🛑 แก้ไขการแสดงผลชื่อ: ดึงจาก driverData.full_name เป็นหลัก ถ้าไม่มีให้ใช้ username
       const driverData = d.drivers;
       const driverName = driverData ? (driverData.full_name || driverData.users?.username) : 'ยังไม่ระบุคนขับ';
-      
+
       const plateNumber = d.vans?.plate_number || '-';
 
       const div = document.createElement('div');
@@ -547,9 +549,9 @@ window.fetchAndRenderSchedules = async function () {
 
       schedulesList.appendChild(div);
     });
-    
+
     if (window.lucide) window.lucide.createIcons();
-    
+
   } catch (error) {
     console.error("Error loading schedules: ", error.message);
     schedulesList.innerHTML = `<p style="color:red; text-align:center; padding: 2rem;">โหลดล้มเหลว: ${error.message}</p>`;
@@ -573,7 +575,7 @@ window.renderScheduleForm = async function (schedule = null) {
     supabase.from('routes').select('*'),
     supabase.from('vans').select('*').eq('is_active', true),
     supabase.from('drivers').select('*'),
-    supabase.from('van_schedules').select('id, driver_id, van_id, depart_time, route_id, status, routes(estimated_hours)').gte('depart_time', `${pastDateStr}T00:00:00`)
+    supabase.from('van_schedules').select('id, driver_id, van_id, depart_time, route_id, routes(estimated_hours)').gte('depart_time', `${pastDateStr}T00:00:00`)
   ]);
 
   formRoutesData = resRoutes.data || [];
@@ -597,7 +599,7 @@ window.renderScheduleForm = async function (schedule = null) {
   const todayStr = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-' + String(now.getDate()).padStart(2, '0');
 
   let defaultDate = todayStr;
-  let defaultHour = String(now.getHours()).padStart(2, '0'); 
+  let defaultHour = String(now.getHours()).padStart(2, '0');
   let defaultMinute = '00';
 
   if (schedule && schedule.depart_time) {
@@ -618,9 +620,9 @@ window.renderScheduleForm = async function (schedule = null) {
                 <h3 style="color:var(--color-blue-dark);">${schedule ? '✏️ แก้ไขรอบรถ' : '✨ สร้างรอบเดินทางใหม่'}</h3>
                 ${schedule ? `<button type="button" class="btn-icon" onclick="window.deleteSchedule('${schedule.id}')" title="ลบ" style="color:var(--color-danger);"><i data-lucide="trash-2"></i> ลบ</button>` : ''}
             </div>
-            
+
             <div style="display:flex; flex-direction:column; gap:1.2rem;">
-                
+
                 ${schedule ? `
                 <div style="background: #f0fdf4; padding: 10px; border-radius: 8px; border: 1px dashed #bbf7d0;">
                     <label style="display:block; font-size:14px; font-weight:bold; margin-bottom:4px;">สถานะการเดินทาง</label>
@@ -645,7 +647,7 @@ window.renderScheduleForm = async function (schedule = null) {
                         <label style="display:block; font-size:14px; font-weight:bold; margin-bottom:4px;">วันที่เดินทาง <span style="color:red">*</span></label>
                         <input type="date" id="sch-date" value="${defaultDate}" min="${todayStr}" onchange="window.updateSmartDropdowns()" style="width: 100%; padding: 10px; border: 1px solid var(--color-border-light); border-radius: 8px;">
                     </div>
-                    
+
                     <div style="flex: 1;">
                         <label style="display:block; font-size:14px; font-weight:bold; margin-bottom:4px;">เวลา <span style="color:red">*</span></label>
                         <input type="text" id="sch-time" value="${defaultTime}" style="width: 100%; padding: 10px; border: 1px solid var(--color-border-light); border-radius: 8px; font-family: inherit; cursor: pointer; background: #fff;" readonly placeholder="คลิกเลือกเวลา">
@@ -683,7 +685,7 @@ window.renderScheduleForm = async function (schedule = null) {
             </div>
         </div>
     `;
-  
+
   if (window.lucide) window.lucide.createIcons();
 
   if (window.flatpickr) {
@@ -711,7 +713,7 @@ window.updateSmartDropdowns = function (preSelectVanId = null, preSelectDriverId
   if (!dateInput || !timeInput) return;
 
   const dateVal = dateInput.value;
-  const timeVal = timeInput.value; 
+  const timeVal = timeInput.value;
 
   // แยกชั่วโมงกับนาทีจากช่องเดียว
   let hourVal = '00';
@@ -746,11 +748,10 @@ window.updateSmartDropdowns = function (preSelectVanId = null, preSelectDriverId
     return formSchedulesData.some(sch => {
       const isMatch = type === 'van' ? sch.van_id === vehicleOrDriverId : sch.driver_id === vehicleOrDriverId;
       if (!isMatch || sch.id === currentEditScheduleId) return false;
-      if (sch.status === 'cancelled' || sch.status === 'completed') return false; // ← เพิ่มบรรทัดนี้
 
       const safeTimeStr = sch.depart_time.replace(' ', 'T');
       const schDateStr = safeTimeStr.split('T')[0];
-      //if (dateVal === schDateStr) return true; // กฎ 1 วัน 1 คิว
+      if (dateVal === schDateStr) return true; // กฎ 1 วัน 1 คิว
 
       const schStart = new Date(safeTimeStr).getTime();
       const schOutboundHours = (sch.routes && sch.routes.estimated_hours) ? sch.routes.estimated_hours : 4;
@@ -814,7 +815,7 @@ window.updateSmartDropdowns = function (preSelectVanId = null, preSelectDriverId
       driversOptions += `<option value="${driverProfileId}" ${isSelected} ${disabledAttr}>🧑‍✈️ ${driverFullName}${busyText}</option>`;
     }
   });
-  
+
   if (availableDrivers === 0 && targetStart) {
     driversOptions = '<option value="">❌ ไม่มีคนขับว่าง (ติดคิว/ยังตีรถกลับมาไม่ถึง)</option>' + driversOptions;
   }
@@ -872,14 +873,14 @@ window.saveSchedule = async function () {
   console.log("👉 ปุ่มบันทึกถูกกด กำลังตรวจสอบข้อมูล...");
 
   const routeId = document.getElementById('sch-route')?.value;
-  const vanId = document.getElementById('sch-van')?.value; 
+  const vanId = document.getElementById('sch-van')?.value;
   const driverId = document.getElementById('sch-driver')?.value;
   const price = document.getElementById('sch-price')?.value;
   const seatsVal = document.getElementById('sch-seats')?.value;
   const seats = parseInt(seatsVal);
 
   const dateVal = document.getElementById('sch-date')?.value;
-  const timeVal = document.getElementById('sch-time')?.value; 
+  const timeVal = document.getElementById('sch-time')?.value;
 
   let missingFields = [];
   if (!routeId || routeId === "undefined" || routeId === "null" || routeId === "") missingFields.push("เส้นทาง");
@@ -891,11 +892,11 @@ window.saveSchedule = async function () {
   if (!price || price === "") missingFields.push("ราคา");
 
   if (missingFields.length > 0) {
-    alert("⚠️ ระบบมองไม่เห็นข้อมูลในช่อง:\n👉 " + missingFields.join(", ") + "\n\nกรุณากดเลือก/พิมพ์ในช่องเหล่านี้ใหม่อีกครั้งครับ"); 
+    alert("⚠️ ระบบมองไม่เห็นข้อมูลในช่อง:\n👉 " + missingFields.join(", ") + "\n\nกรุณากดเลือก/พิมพ์ในช่องเหล่านี้ใหม่อีกครั้งครับ");
     return;
   }
 
-  // 🌟 แปลงแค่ routeId เป็นตัวเลข (เพราะมันเป็น ID แบบตัวเลข) 
+  // 🌟 แปลงแค่ routeId เป็นตัวเลข (เพราะมันเป็น ID แบบตัวเลข)
   // ส่วน vanId เป็น UUID ห้ามแปลงเด็ดขาด ให้ใช้ตรงๆ ไปเลย
   const finalRouteId = parseInt(routeId);
 
@@ -905,8 +906,8 @@ window.saveSchedule = async function () {
   }
 
   const [hourVal, minuteVal] = timeVal.split(':');
-  const timeValStr = `${dateVal}T${hourVal}:${minuteVal}:00+07:00`; 
-  
+  const timeValStr = `${dateVal}T${hourVal}:${minuteVal}:00+07:00`;
+
   const targetStart = new Date(`${dateVal}T${hourVal}:${minuteVal}:00`).getTime();
   const now = new Date().getTime();
 
@@ -930,8 +931,8 @@ window.saveSchedule = async function () {
 
     const safeTimeStr = sch.depart_time.replace(' ', 'T');
     const schDateStr = safeTimeStr.split('T')[0];
-    if (dateVal === schDateStr) return true; 
-    
+    if (dateVal === schDateStr) return true;
+
     const schStart = new Date(safeTimeStr).getTime();
     const schHours = (sch.routes && sch.routes.estimated_hours) ? sch.routes.estimated_hours : 4;
     const schTotalBusyMs = ((schHours * 2) + 2) * 60 * 60 * 1000;
@@ -940,41 +941,11 @@ window.saveSchedule = async function () {
     return (targetStart < schEnd) && (schStart < targetEnd);
   });
 
-  // เช็คแยกกัน — รถ vs คนขับ
-const isVanBusy = formSchedulesData.some(sch => {
-    if (sch.id === currentEditScheduleId) return false;
-    if (sch.status === 'cancelled' || sch.status === 'completed') return false;
-    if (sch.van_id != vanId) return false;
-    const safeTimeStr = sch.depart_time.replace(' ', 'T');
-    const schStart = new Date(safeTimeStr).getTime();
-    const schHours = (sch.routes && sch.routes.estimated_hours) ? sch.routes.estimated_hours : 4;
-    const schEnd   = schStart + ((schHours * 2) + 2) * 60 * 60 * 1000;
-    return (targetStart < schEnd) && (schStart < targetEnd);
-});
-
-const isDriverBusy = formSchedulesData.some(sch => {
-    if (sch.id === currentEditScheduleId) return false;
-    if (sch.status === 'cancelled' || sch.status === 'completed') return false;
-    if (sch.driver_id != driverId) return false;
-    const safeTimeStr = sch.depart_time.replace(' ', 'T');
-    const schStart = new Date(safeTimeStr).getTime();
-    const schHours = (sch.routes && sch.routes.estimated_hours) ? sch.routes.estimated_hours : 4;
-    const schEnd   = schStart + ((schHours * 2) + 2) * 60 * 60 * 1000;
-    return (targetStart < schEnd) && (schStart < targetEnd);
-});
-
-if (isVanBusy && isDriverBusy) {
-    alert("🚨 ทั้งรถตู้และคนขับติดงานอื่นอยู่ในช่วงเวลานี้ (รวมเวลาตีรถกลับแล้ว)");
-    window.updateSmartDropdowns(); return;
-}
-if (isVanBusy) {
-    alert("🚨 รถตู้คันนี้ติดงานอื่นอยู่ในช่วงเวลานี้ กรุณาเลือกรถคันอื่น");
-    window.updateSmartDropdowns(); return;
-}
-if (isDriverBusy) {
-    alert("🚨 คนขับคนนี้ติดงานอื่นอยู่ในช่วงเวลานี้ กรุณาเลือกคนขับคนอื่น");
-    window.updateSmartDropdowns(); return;
-}
+  if (isOverlap) {
+    alert("🚨 ระบบปฏิเสธการบันทึก! ตรวจพบว่ารถตู้ หรือ คนขับคันนี้ ติดงานอื่นอยู่ (รวมเวลาตีรถกลับแล้ว)");
+    window.updateSmartDropdowns();
+    return;
+  }
 
   try {
     let finalAvailableSeats;
@@ -991,10 +962,10 @@ if (isDriverBusy) {
     }
 
     const payload = {
-      route_id: finalRouteId, 
+      route_id: finalRouteId,
       van_id: vanId,          // 🌟 ส่ง vanId แบบ UUID ไปตรงๆ เลย
-      driver_id: driverId,    // 🌟 ส่ง driverId แบบ UUID ไปตรงๆ 
-      depart_time: timeValStr, 
+      driver_id: driverId,    // 🌟 ส่ง driverId แบบ UUID ไปตรงๆ
+      depart_time: timeValStr,
       price: parseFloat(price) || 0,
       total_seats: seats,
       available_seats: finalAvailableSeats
@@ -1052,8 +1023,8 @@ window.deleteSchedule = async function (id) {
 // ==========================================
 // 6. จัดการข้อมูลคนขับ (Manage Drivers)
 // ==========================================
-let currentEditDriverUserId = null; 
-let currentEditDriverProfileId = null; 
+let currentEditDriverUserId = null;
+let currentEditDriverProfileId = null;
 
 window.fetchAndRenderDrivers = async function () {
   const tableBody = document.getElementById('drivers-table-body');
@@ -1077,11 +1048,11 @@ window.fetchAndRenderDrivers = async function () {
       // ป้องกัน Error กรณีรูปแบบข้อมูล users มาเป็น Array
       const userData = Array.isArray(d.users) ? d.users[0] : d.users;
       const email = userData ? userData.email : '<span style="color:red">ไม่มีบัญชีล็อกอิน</span>';
-      
+
       const tr = document.createElement('tr');
       // ป้องกัน Error จาก Single Quote ในชื่อคนขับ
       const driverJson = JSON.stringify(d).replace(/'/g, "\\'");
-      
+
       tr.innerHTML = `
         <td><strong>${d.full_name || '-'}</strong></td>
         <td>${d.phone || '-'}</td>
@@ -1116,7 +1087,7 @@ window.openDriverModal = function (driver = null) {
     document.getElementById('drv-fullname').value = driver.full_name || '';
     document.getElementById('drv-phone').value = driver.phone || '';
     document.getElementById('drv-license').value = driver.license_no || '';
-    
+
     const userData = Array.isArray(driver.users) ? driver.users[0] : driver.users;
     document.getElementById('drv-username').value = userData?.username || '';
     document.getElementById('drv-email').value = userData?.email || '';
@@ -1141,48 +1112,37 @@ window.closeDriverModal = function () {
 window.saveDriver = async function (e) {
   e.preventDefault();
 
-  const fullName  = document.getElementById('drv-fullname').value.trim();
-  const phone     = document.getElementById('drv-phone').value.trim();
+  const fullName = document.getElementById('drv-fullname').value.trim();
+  const phone = document.getElementById('drv-phone').value.trim();
   const licenseNo = document.getElementById('drv-license').value.trim();
-  const username  = document.getElementById('drv-username').value.trim();
-  const email     = document.getElementById('drv-email').value.trim();
-  const password  = document.getElementById('drv-password').value.trim();
-
-  // validate
-  if (!currentEditDriverUserId && !password) {
-    alert('กรุณาตั้งรหัสผ่านสำหรับผู้ใช้ใหม่'); return;
-  }
-
-  const saveBtn = document.getElementById('driver-form').querySelector('[type="submit"]');
-  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'กำลังบันทึก...'; }
+  const username = document.getElementById('drv-username').value.trim();
+  const email = document.getElementById('drv-email').value.trim();
+  const password = document.getElementById('drv-password').value.trim();
 
   try {
-    const userPayload = { username, email, role: 'driver' };
-
-    // ── hash password ก่อนบันทึกเสมอ ──────────────────────
-    if (password) {
-      const salt = await dcodeIO.bcrypt.genSalt(10);
-      userPayload.password = await dcodeIO.bcrypt.hash(password, salt);
-    }
+    const userPayload = {
+        username: username,
+        email: email,
+        role: 'driver'
+    };
+    if (password) userPayload.password = password;
 
     let finalUserId = currentEditDriverUserId;
 
     if (currentEditDriverUserId) {
-      // แก้ไข: update user
       const { error } = await supabase.from('users').update(userPayload).eq('id', currentEditDriverUserId);
       if (error) throw error;
     } else {
-      // สร้างใหม่: insert user
       const { data, error } = await supabase.from('users').insert([userPayload]).select();
       if (error) throw error;
       if (data && data.length > 0) finalUserId = data[0].id;
     }
 
     const driverPayload = {
-      user_id: finalUserId,
-      full_name: fullName,
-      phone: phone,
-      license_no: licenseNo
+        user_id: finalUserId,
+        full_name: fullName,
+        phone: phone,
+        license_no: licenseNo
     };
 
     if (currentEditDriverProfileId) {
@@ -1196,12 +1156,9 @@ window.saveDriver = async function (e) {
     alert('บันทึกข้อมูลสำเร็จ!');
     window.closeDriverModal();
     window.fetchAndRenderDrivers();
-
   } catch (error) {
     console.error("Error saving driver:", error);
     alert('บันทึกไม่สำเร็จ: ' + error.message);
-  } finally {
-    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'บันทึกข้อมูล'; }
   }
 };
 
@@ -1271,7 +1228,7 @@ window.fetchAndRenderPayments = async function () {
         </div>
       `;
 
-      div.querySelector('.btn-preview-slip').addEventListener('click', () => window.previewSlip(payment.slip_image));
+      div.querySelector('.btn-preview-slip').addEventListener('click', () => window.previewSlip(payment.slip_image, payment.id));
       div.querySelector('.btn-approve').addEventListener('click', () => window.updatePaymentStatus(payment.id, 'confirmed', payment.schedule_id));
       div.querySelector('.btn-reject').addEventListener('click', () => window.updatePaymentStatus(payment.id, 'rejected', payment.schedule_id));
       div.querySelector('.btn-violation').addEventListener('click', () => window.rejectAndMarkViolation(payment.id, payment.user_id, currentViolations, payment.schedule_id));
@@ -1291,19 +1248,7 @@ window.updatePaymentStatus = async function (id, newStatus, scheduleId) {
   if (!isConfirmed) return;
 
   try {
-    const updateData = { status: newStatus };
-    // generate ticket_code เมื่ออนุมัติ
-    if (newStatus === 'confirmed') {
-      updateData.ticket_code = 'TK-' 
-        + Date.now().toString(36).toUpperCase() 
-        + '-' 
-        + Math.random().toString(36).substring(2, 6).toUpperCase();
-    }
-    const { error: updateError } = await supabase
-      .from('bookings')
-      .update(updateData)
-      .eq('id', id);
-    
+    const { error: updateError } = await supabase.from('bookings').update({ status: newStatus }).eq('id', id);
     if (updateError) throw updateError;
 
     if (newStatus === 'rejected') {
@@ -1358,7 +1303,7 @@ window.rejectAndMarkViolation = async function (bookingId, userId, currentViolat
   }
 };
 
-window.previewSlip = function (url) {
+window.previewSlip = async function (url, bookingId) {
   const previewContainer = document.getElementById('slip-preview');
   if (!previewContainer) return;
 
@@ -1366,8 +1311,20 @@ window.previewSlip = function (url) {
     previewContainer.style.background = 'var(--color-card-white)';
     previewContainer.innerHTML = '';
 
-    const baseUrl = 'https://skfibvoeoqnhxmrwjitk.supabase.co/storage/v1/object/public/slips/';
-    const finalImageUrl = url.startsWith('http') ? url : baseUrl + url;
+    let finalImageUrl = url;
+    if (!/^https:\/\//.test(url)) {
+      try {
+        const response = await fetch('/api/bookings/' + encodeURIComponent(bookingId) + '/slip-url', {
+          headers: { Authorization: 'Bearer ' + localStorage.getItem('token') }
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message);
+        finalImageUrl = data.url;
+      } catch (err) {
+        previewContainer.textContent = err.message || '????????????????????';
+        return;
+      }
+    }
 
     const imgElement = document.createElement('img');
     imgElement.src = finalImageUrl;
@@ -1480,7 +1437,7 @@ function getRoutesHtml() {
               <label style="display:block; font-size:14px; font-weight:bold; margin-bottom:4px;">ปลายทาง <span style="color:red">*</span></label>
               <input type="text" id="route-destination" required placeholder="เช่น ชลบุรี (พัทยา)" style="width:100%; padding:10px; border:1px solid var(--color-border-light); border-radius:8px;">
             </div>
-            
+
             <div>
               <label style="display:block; font-size:14px; font-weight:bold; margin-bottom:4px;">เวลาเดินทางโดยประมาณ (ชม.) <span style="color:red">*</span></label>
               <input type="number" id="route-hours" required placeholder="เช่น 10.5" step="0.5" min="0.5" style="width:100%; padding:10px; border:1px solid var(--color-border-light); border-radius:8px;">
@@ -1566,7 +1523,7 @@ function getSchedulesHtml() {
         <div id="schedules-list" style="display:flex; flex-direction:column; gap:1rem; height: 600px; overflow-y: auto; padding-right: 10px;">
           <p style="text-align:center; padding:2rem; color:var(--color-text-soft);">กำลังโหลดข้อมูลรอบรถ...</p>
         </div>
-        
+
         <div class="card" id="schedule-form-panel" style="height: 600px; overflow-y:auto; position: sticky; top: 20px; display:flex; flex-direction:column; align-items:center; justify-content:center; color:var(--color-text-soft);">
           <i data-lucide="edit-3" style="width:48px; height:48px; opacity:0.2; margin-bottom:1rem;"></i>
           <p style="font-size:13px; opacity:0.5;">เลือกรอบเดินทางเพื่อแก้ไข หรือกดสร้างรอบรถใหม่</p>
@@ -1607,9 +1564,9 @@ function getDriversHtml() {
             <button type="button" class="btn-icon" onclick="window.closeDriverModal()"><i data-lucide="x"></i></button>
           </div>
           <form id="driver-form" onsubmit="window.saveDriver(event)" style="display:flex; flex-direction:column; gap:1.2rem;">
-            
+
             <h4 style="color:var(--color-blue-dark); margin-bottom:-0.5rem; border-bottom:1px dashed #ccc; padding-bottom:0.5rem;">ส่วนที่ 1: ข้อมูลบัญชีสำหรับล็อกอิน</h4>
-            
+
             <div style="display:flex; gap:1rem;">
               <div style="flex:1;">
                 <label style="display:block; font-size:14px; font-weight:bold; margin-bottom:4px;">Username <span style="color:red">*</span></label>
@@ -1644,7 +1601,7 @@ function getDriversHtml() {
               <label style="display:block; font-size:14px; font-weight:bold; margin-bottom:4px;">เลขที่ใบอนุญาตขับขี่ <span style="color:red">*</span></label>
               <input type="text" id="drv-license" required placeholder="ระบุเลขที่ใบขับขี่" style="width:100%; padding:10px; border:1px solid var(--color-border-light); border-radius:8px;">
             </div>
-            
+
             <div style="display:flex; justify-content:flex-end; gap:1rem; margin-top:1rem;">
               <button type="button" onclick="window.closeDriverModal()" style="padding:10px 20px; border-radius:8px; border:1px solid var(--color-border-light); background:white; cursor:pointer; font-weight:bold;">ยกเลิก</button>
               <button type="submit" class="btn-primary" style="padding:10px 20px;">บันทึกข้อมูล</button>
@@ -1688,7 +1645,19 @@ function closeMobileMenu() {
   if (overlay) overlay.classList.remove('show');
 }
 
+function renderUserProfile() {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    const username = user?.username || '';
+    document.getElementById('admin-username').textContent = username;
+    document.getElementById('admin-avatar').textContent = Array.from(username).slice(0, 2).join('').toUpperCase();
+  } catch (err) {
+    console.error('Unable to render admin profile:', err);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  renderUserProfile();
   renderSidebar();
   renderContent();
 
@@ -1706,14 +1675,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const logoutBtn = document.querySelector('.btn-logout');
   if (logoutBtn) {
     logoutBtn.addEventListener('click', async () => {
-      const logoutBtn = document.querySelector('.btn-logout');
-if (logoutBtn) {
-    logoutBtn.addEventListener('click', () => {
-        localStorage.removeItem("token");
-        localStorage.removeItem("user");
-        window.location.replace('../login.html');
-    });
-}
+      localStorage.removeItem('token');
+      localStorage.removeItem('user');
       window.location.href = '../login.html';
     });
   }
