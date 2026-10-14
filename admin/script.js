@@ -2429,7 +2429,19 @@ function closeMobileMenu() {
   if (overlay) overlay.classList.remove('show');
 }
 
+function renderUserProfile() {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || 'null');
+    const username = user?.username || '';
+    document.getElementById('admin-username').textContent = username;
+    document.getElementById('admin-avatar').textContent = Array.from(username).slice(0, 2).join('').toUpperCase();
+  } catch (err) {
+    console.error('Unable to render admin profile:', err);
+  }
+}
+
 document.addEventListener('DOMContentLoaded', () => {
+  renderUserProfile();
   renderSidebar();
   renderContent();
 
